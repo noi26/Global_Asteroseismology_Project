@@ -1,0 +1,55 @@
+import os
+import requests
+import numpy as np
+
+def download_data_Las_Cumbres(username, password, folder_name, requests_array):
+    # Get the API token
+    response = requests.post(
+        'https://observe.lco.global/api/api-token-auth/',
+        data={'username': username, 'password': password}
+    ).json()
+    token = response.get('token')
+    headers = {'Authorization': 'Token ' + token}
+
+    # Create the folder if it doesn't exist
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+
+    os.chdir(folder_name)
+
+    lens = np.array([])
+    for i in range(len(requests_array)):
+        response = requests.get(
+            'https://archive-api.lco.global/frames/?' +
+            'reduction_level=91&' +
+            'limit=10000&' +  # Adjust the limit if necessary
+            'request_id=' + requests_array[i],
+            headers=headers
+        ).json()
+        len_i = len(response['results'])
+        print(f'Number of frames in sub-request #{requests_array[i]}: {len_i}')
+
+        if len_i == 0:
+            print(f'No frames in sub-request #{requests_array[i]}')
+            if i != (len(requests_array) -1):
+                print('Moving to the next sub-request')
+        else:
+            print('Downloading frames...')
+            lens = np.append(lens, len_i)
+            frames = response['results']
+            for frame in frames:
+                filename = frame['filename']
+                with open(filename, 'wb') as f:
+                    print(f'Downloading file {filename} from sub-request {requests_array[i]}')
+                    f.write(requests.get(frame['url']).content)
+
+    print(f'Downloaded {sum(lens)} frames from {len(lens)} sub-requests')
+    print(f'To directory: {folder_name}')
+
+# Example usage
+username = 'your_username'
+password = 'your_password'
+folder_name = 'your_folder_name'
+requests_array = ['347869', '347870']
+
+download_data_Las_Cumbres(username, password, folder_name, requests_array)
